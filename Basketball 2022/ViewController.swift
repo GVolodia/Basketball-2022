@@ -150,6 +150,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         if isBasketballFieldAdded {
             // get balls
             guard let ballNode = getBall() else {return}
+            
+            // let balls vanish in 5 sec
+            ballNode.runAction(.sequence([
+                                    .wait(duration: 5),
+                                    .fadeOut(duration: 0),
+                                    .removeFromParentNode()]))
+            
             // add balls to the camera position
             sceneView.scene.rootNode.addChildNode(ballNode)
             
