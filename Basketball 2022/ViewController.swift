@@ -9,11 +9,24 @@ import UIKit
 import SceneKit
 import ARKit
 
-class ViewController: UIViewController, ARSCNViewDelegate {
+class ViewController: UIViewController, ARSCNViewDelegate, SCNPhysicsContactDelegate {
 // MARK: - Outlets
     @IBOutlet var sceneView: ARSCNView!
     
     // MARK: - Properties
+    var isContactDetected = false
+    
+    var throwsTextNode: SCNNode! = nil
+    var throwsText: SCNText! = nil
+    
+    var hitsTextNode: SCNNode! = nil
+    var hitsText: SCNText! = nil
+    
+    var cpNode: SCNNode! = nil
+    
+    var numberOfThrows: Int = 0
+    var numberOfHits: Int = 0
+    
     // Create a session configuration
     let configuration = ARWorldTrackingConfiguration()
     
@@ -23,6 +36,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             sceneView.session.run(configuration, options: .removeExistingAnchors)
         }
     }
+    
+    let CollisionCategoryPoint: Int = 4
+    let CollisionCategoryBall: Int = 8
     
     
     // MARK: - UIViewController
@@ -36,6 +52,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // Show statistics such as fps and timing information
         sceneView.showsStatistics = true
         
+        sceneView.scene.physicsWorld.contactDelegate = self
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -69,8 +86,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         ball.firstMaterial?.diffuse.contents = UIImage(named: "basketball-texture.png")
         let ballNode = SCNNode(geometry: ball)
         
+        ballNode.name = "ball"
         // add physics
         ballNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(node: ballNode))
+        
+        ballNode.physicsBody!.categoryBitMask = CollisionCategoryBall
+        ballNode.physicsBody!.contactTestBitMask = CollisionCategoryPoint
+//        ballNode.physicsBody!.collisionBitMask = 0
         
         // calculating force power and direction
         let power = Float(5)
@@ -97,6 +119,31 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Rotate scene node to make it vertical
         basketballSceneNode.eulerAngles.x -= .pi/2
+        
+        
+        // geting nodes for throws and hits number 3Dtext fields and setting initial 0's
+        throwsTextNode = scene.rootNode.childNode(withName: "throws number", recursively: true)
+        throwsText = throwsTextNode?.geometry as? SCNText
+        throwsText.string = "\(numberOfThrows)"
+        
+        hitsTextNode = scene.rootNode.childNode(withName: "hits number", recursively: true)
+        hitsText = hitsTextNode?.geometry as? SCNText
+        hitsText.string = "\(numberOfHits)"
+        
+        
+        // Creating checkpoint which when passed indicates a hit
+        let cpgeometry = SCNSphere(radius: 0.001)
+//        cpgeometry.firstMaterial?.diffuse.contents = UIColor.red
+        cpNode = SCNNode(geometry: cpgeometry)
+        cpNode.position = SCNVector3(x: 0.0, y: -0.5, z: 0.23)
+        cpNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: cpNode, options: [SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron]))
+        cpNode.name = "cpNode"
+        
+        cpNode.physicsBody!.categoryBitMask = CollisionCategoryPoint
+        cpNode.physicsBody!.collisionBitMask = 0
+        
+        // Add the checkpoint node to basketballscene node
+        basketballSceneNode.addChildNode(cpNode)
         
         return basketballSceneNode
     }
@@ -157,8 +204,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                                     .fadeOut(duration: 0),
                                     .removeFromParentNode()]))
             
+            numberOfThrows += 1
+            isContactDetected = false
             // add balls to the camera position
             sceneView.scene.rootNode.addChildNode(ballNode)
+            throwsText.string = "\(numberOfThrows)"
+            
             
         } else {
             let location = sender.location(in: sceneView)
@@ -179,4 +230,24 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
    
+    func physicsWorld(_ world: SCNPhysicsWorld, didEnd contact: SCNPhysicsContact) {
+        // Collision happened between contact.nodeA and contact.nodeB
+        guard let nodeNameA = contact.nodeA.name else {return}
+        guard let nodeNameB = contact.nodeB.name else {return}
+//        print(nodeNameA)
+//        print(nodeNameB)
+        guard !isContactDetected else {return}
+        if nodeNameA == "ball" && nodeNameB == "cpNode" {
+            numberOfHits += 1
+            hitsText.string = "\(numberOfHits)"
+            isContactDetected = true
+        } else if nodeNameB == "ball" && nodeNameA == "cpNode" {
+            numberOfHits += 1
+            hitsText.string = "\(numberOfHits)"
+            isContactDetected = true
+        }
+    }
 }
+
+ 
+
